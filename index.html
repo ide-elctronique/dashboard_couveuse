@@ -602,6 +602,35 @@
     color: #94a3b8;
   }
 
+  .turn-subpanel {
+        margin-top: 12px;
+        padding: 12px 14px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .turn-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        gap: 10px;
+    }
+
+    .turn-label {
+        color: #64748b;
+        font-weight: bold;
+    }
+
+    .turn-value {
+        color: #0f172a;
+        font-weight: bold;
+    }
+
   @media (max-width: 650px) {
     body { padding: 12px; }
     .main-grid { grid-template-columns: 1fr; }
@@ -970,6 +999,17 @@
           <div class="info-value" id="retournement">OFF</div>
         </div>
 
+        <div class="turn-subpanel">
+                <div class="turn-row">
+                    <span class="turn-label">Intervalle retournement (incubation)</span>
+                    <span class="turn-value" id="intervalleIncubationVal">0 min</span>
+                </div>
+                <div class="turn-row">
+                    <span class="turn-label">Prochain retournement</span>
+                    <span class="turn-value" id="prochainRetournementVal">Retournement dans 0 min</span>
+                </div>
+        </div>
+
         <div class="info-card">
           <div class="info-icon-wrapper">
             <div class="info-icon inactive" id="lumiereIcon">
@@ -1317,14 +1357,14 @@ function applyDashboardData(data) {
   }
 
   const extElement = document.getElementById("extractionAir");
+  let extActif = false;
   if (extElement) {
     const extDispo = (data.extract_air_disponible !== undefined)
       ? Boolean(data.extract_air_disponible)
       : Boolean(data.extraction_air_disponible);
-    const extActif = (data.extracteur_air !== undefined)
-      ? Boolean(data.extracteur_air)
-      : Boolean(data.extraction_air);
-
+    extActif = extDispo && ((data.extracteur_air !== undefined) 
+    ? Boolean(data.extracteur_air) : Boolean(data.extraction_air));
+      
     if (extDispo) {
       setState("extractionAir", extActif, "EN MARCHE", "ARRÊT");
     } else {
@@ -1356,6 +1396,43 @@ function applyDashboardData(data) {
     retournementEgg.classList.remove("turned");
     retournementLed.className = "status-led off";
   }
+
+  const phaseStr = String(data.phase_actuelle || "").toLowerCase();
+        const isHatchingPhase = Boolean(data.couvee_en_cours) &&
+            (phaseStr.includes("closion") || Number(data.jour_total) > Number(data.incubation_duree || 999));
+
+        const rawInterval = (data.intervalle_retournement_incubation !== undefined)
+            ? Number(data.intervalle_retournement_incubation)
+            : Number(data.intervalle_retournement);
+
+        const intervalIncubation = (!data.couvee_en_cours || isHatchingPhase || !Number.isFinite(rawInterval) || rawInterval < 0)
+            ? 0
+            : Math.round(rawInterval);
+
+        const rawNextTurn = (data.prochain_retournement_min !== undefined)
+            ? Number(data.prochain_retournement_min)
+            : intervalIncubation;
+
+        const nextTurnMin = (!data.couvee_en_cours || isHatchingPhase || !Number.isFinite(rawNextTurn) || rawNextTurn < 0)
+            ? 0
+            : Math.round(rawNextTurn);
+
+        const intIncEl = document.getElementById("intervalleIncubationVal");
+        if (intIncEl) {
+            intIncEl.innerText = `${intervalIncubation} min`;
+        }
+
+        const nextTurnEl = document.getElementById("prochainRetournementVal");
+        if (nextTurnEl) {
+            if (retournementActif) {
+                nextTurnEl.innerText = "Retournement en cours";
+            } else if (!data.couvee_en_cours || isHatchingPhase || nextTurnMin <= 0) {
+                nextTurnEl.innerText = "Retournement dans 0 min";
+            } else {
+                nextTurnEl.innerText = `Retournement dans ${nextTurnMin} min`;
+            }
+    }
+  
 
   const lumiereActive = Boolean(data.lumiere_active);
   const lumiereElement = document.getElementById("lumiere");
