@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Couveuse - Dashboard Distant</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f1f5f9;
+    color: #1e293b;
+    margin: 0;
+    padding: 20px;
+  }
+
+  /* ==========================================================
+     ECRAN DE CONNEXION (AVANT OUVERTURE)
+     ========================================================== */
+  .login-wrap {
+    min-height: calc(100vh - 40px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 440px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  }
+
+  .login-card h2 {
+    margin: 0 0 6px 0;
+    font-size: 21px;
+    color: #0f172a;
+    text-align: center;
+  }
+
+  .login-sub {
+    font-size: 13px;
+    color: #64748b;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .login-group {
+    margin-bottom: 14px;
+  }
+
+  .login-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: bold;
+    color: #475569;
+    margin-bottom: 6px;
+  }
+
+  .login-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #0f172a;
+  }
+
+  .login-group input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+
+  .login-group input:focus {
+    outline: none;
+    border-color: #0d9488;
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+  }
+
+  .remember-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #475569;
+  }
+
+  .remember-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .remember-label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: #0d9488;
+    cursor: pointer;
+    margin: 0;
+  }
+
+  .clear-saved-btn {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .clear-saved-btn:hover {
+    color: #dc2626;
+  }
+
+  .login-btn {
+    width: 100%;
+    padding: 12px;
+    background: #0d9488;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  .login-btn:hover {
+    background: #0f766e;
+  }
+
+  .login-btn:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+  }
+
+  .login-error {
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 12px;
+    min-height: 18px;
+  }
+
+  /* ==========================================================
+     DASHBOARD (IDENTIQUE A LA PRESENTATION LOCALE)
+     ========================================================== */
+  .dashboard {
+    max-width: 1100px;
+    margin: auto;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .header h1 {
+    font-size: 25px;
+    margin: 0;
+    color: #0f172a;
+  }
+
+  .header-subtitle {
+    color: #64748b;
+    font-size: 13px;
+    margin-top: 5px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .toast-msg {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    z-index: 9999;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: bold;
+    color: white;
+    background: #0f172a;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+    opacity: 0;
+    transform: translate(-50%, -10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+    max-width: 90%;
+    text-align: center;
+  }
+
+  .toast-msg.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .toast-msg.success { background: #15803d; }
+  .toast-msg.error   { background: #b91c1c; }
+
+  .connection {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #64748b;
+  }
+
+  .connection-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #94a3b8;
+  }
+
+  .connection.online .connection-dot {
+    background: #16a34a;
+  }
+
+  .connection.offline .connection-dot {
+    background: #dc2626;
+  }
+
+  .alert-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    color: #166534;
+    font-weight: bold;
+    transition: all 0.3s ease;
+  }
+
+  .alert-banner.warning {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #c2410c;
+  }
+
+  .alert-banner.danger {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+  }
+
+  .alert-icon {
+    font-size: 23px;
+  }
+
+  .actuator-icon svg,
+  .info-icon svg {
+    width: 32px;
+    height: 32px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .actuator-icon {
+    color: #64748b;
+  }
+
+  .fan-icon {
+    color: #64748b;
+  }
+
+  .fan-icon.active {
+    color: #16a34a;
+  }
+
+  .fan-icon-general {
+    color: #0284c7;
+  }
+
+  .egg-svg {
+    transition: transform 0.6s ease;
+    transform-origin: center;
+  }
+
+  .egg-svg.turned {
+    transform: rotate(180deg);
+  }
+
+  .info-icon-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 9px;
+  }
+
+  .info-icon {
+    line-height: 1;
+    color: #94a3b8;
+    transition: color 0.3s ease;
+  }
+
+  .info-icon.active {
+    color: #eab308;
+    filter: drop-shadow(0 0 6px rgba(234, 179, 8, 0.5));
+  }
+
+  .info-icon.inactive {
+    color: #94a3b8;
+  }
+
+  .status-led {
+    position: absolute;
+    top: -3px;
+    right: -10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #94a3b8;
+    border: 2px solid white;
+    box-shadow: 0 0 0 1px #cbd5e1;
+  }
+
+  .status-led.on {
+    background: #16a34a;
+    box-shadow: 0 0 5px rgba(22, 163, 74, 0.45);
+  }
+
+  .status-led.off {
+    background: #94a3b8;
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
+  }
+
+  .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 18px;
+    color: #334155;
+  }
+
+  .panel-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 19px;
+    background: #f1f5f9;
+  }
+
+  .gauges {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+  }
+
+  .gauge-box {
+    text-align: center;
+    min-width: 0;
+  }
+
+  .gauge-box.standby .gauge-value,
+  .gauge-box.standby .gauge-unit,
+  .gauge-box.standby .gauge-setpoint,
+  .gauge-box.standby .gauge-setpoint strong {
+    color: #94a3b8;
+  }
+
+  .gauge-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #64748b;
+    margin-bottom: 8px;
+  }
+
+  .gauge {
+    position: relative;
+    width: 160px;
+    max-width: 100%;
+    aspect-ratio: 1 / 1;
+    margin: auto;
+  }
+
+  .gauge svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .gauge-track {
+    fill: none;
+    stroke: #e2e8f0;
+    stroke-width: 10;
+  }
+
+  .gauge-progress {
+    fill: none;
+    stroke: #0d9488;
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-dasharray: 251.2;
+    stroke-dashoffset: 251.2;
+    transition: stroke-dashoffset 0.6s ease, stroke 0.4s ease;
+  }
+
+  .gauge-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .gauge-value {
+    font-size: 29px;
+    font-weight: bold;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+
+  .gauge-unit {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 3px;
+  }
+
+  .gauge-setpoint {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 10px;
+  }
+
+  .gauge-setpoint strong {
+    color: #334155;
+  }
+
+  .actuator-list {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+
+  .actuator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  .actuator-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .actuator-name {
+    font-size: 13px;
+    font-weight: bold;
+    color: #334155;
+  }
+
+  .actuator-description {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 3px;
+  }
+
+  .state {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: bold;
+    white-space: nowrap;
+    background: #e2e8f0;
+    color: #475569;
+  }
+
+  .state.on {
+    background: #dcfce7;
+    color: #15803d;
+  }
+
+  .state.off {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .state.warning {
+    background: #ffedd5;
+    color: #c2410c;
+  }
+
+  .state.danger {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .state.unavailable {
+    background: #f1f5f9;
+    color: #94a3b8;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .info-card {
+    padding: 16px 12px;
+    text-align: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+  }
+
+  .info-title {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: bold;
+    margin-top: 5px;
+  }
+
+  .info-value {
+    margin-top: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    color: #334155;
+  }
+
+  .footer {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 11px 20px;
+    background: #0d9488;
+    color: white;
+    text-decoration: none;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .btn:hover {
+    background: #0f766e;
+  }
+
+  .update-time {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  @media (max-width: 650px) {
+    body { padding: 12px; }
+    .main-grid { grid-template-columns: 1fr; }
+    .header h1 { font-size: 21px; }
+    .gauge { width: 135px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     1. CONNEXION AU BROKER MQTT WSS (AUCUN IDENTIFIANT EN DUR)
+     ========================================================= -->
+<div id="loginScreen" class="login-wrap">
+  <form class="login-card" onsubmit="handleBrokerConnect(event)">
+    <h2>🥚 Connexion Couveuse</h2>
+    <div class="login-sub">Renseignez les paramètres de votre broker MQTT WSS</div>
+
+    <div class="login-group">
+      <label for="brokerUrl">Adresse du broker (WSS)</label>
+      <input id="brokerUrl" type="url" placeholder="wss://votre-broker.s1.eu.hivemq.cloud:8884/mqtt" required>
+    </div>
+
+    <div class="login-group">
+      <label for="broodPrefix">Nom / Préfixe de la couveuse</label>
+      <input id="broodPrefix" type="text" placeholder="ex: couveuse_01" autocomplete="off" required>
+    </div>
+
+    <div class="login-group">
+      <label for="brokerUser">Identifiant broker MQTT</label>
+      <input id="brokerUser" type="text" placeholder="ex: incubateur_client" autocomplete="username" required>
+    </div>
+
+    <div class="login-group">
+      <label for="brokerPass">Mot de passe broker MQTT</label>
+      <input id="brokerPass" type="password" placeholder="••••••••" autocomplete="current-password" required>
+    </div>
+
+    <div class="remember-row">
+      <label class="remember-label" for="rememberCreds">
+        <input id="rememberCreds" type="checkbox">
+        <span>Enregistrer les paramètres sur ce navigateur</span>
+      </label>
+      <button type="button" id="btnClearSaved" class="clear-saved-btn" style="display:none;" onclick="clearSavedSettings()">Effacer</button>
+    </div>
+
+    <button id="btnConnectBroker" type="submit" class="login-btn">Se connecter au Dashboard</button>
+    <div id="loginError" class="login-error"></div>
+  </form>
+</div>
+
+<!-- =========================================================
+     2. DASHBOARD PRINCIPAL
+     ========================================================= -->
+<div id="dashboardRoot" class="dashboard" style="display:none;">
+
+  <div class="header">
+    <div>
+      <h1>🥚 Dashboard Couveuse <span id="headerPrefixBadge" style="font-size: 14px; font-weight: normal; color: #0d9488;"></span></h1>
+      <div class="header-subtitle">Supervision à distance en temps réel (MQTT WSS)</div>
+    </div>
+    <div class="header-right">
+      <div id="connection" class="connection">
+        <span class="connection-dot"></span>
+        <span id="connectionText">Connexion...</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="alertBanner" class="alert-banner">
+    <span class="alert-icon" id="alertIcon">✓</span>
+    <span id="alertText">Système en attente des données...</span>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- GESTION ET SUIVI DE LA COUVEE -->
+    <section class="panel" style="grid-column: 1 / -1; background: linear-gradient(to bottom right, #ffffff, #f8fafc);">
+      <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="panel-icon">🐣</span>
+          Gestion et Suivi de la Couvée
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0;">
+          <span id="broodPhaseIconLabel" style="font-size: 12px; font-weight: bold; color: #64748b;">Inactif</span>
+          <div id="broodPhaseVisual" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">🥚</div>
+        </div>
+      </div>
+
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 250px;">
+          <label for="profileSelect" style="font-size: 13px; font-weight: bold; color: #334155;">Profil :</label>
+          <select id="profileSelect" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: white;" onchange="selectProfile(this.value)">
+            <option value="">En attente des profils MQTT...</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btnStartBrood" onclick="startBrood()" style="padding: 9px 16px; background: #16a34a; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;">▶ Démarrer Couvée</button>
+          <button id="btnStopBrood" onclick="stopBrood()" style="padding: 9px 16px; background: #dc2626; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;">⏹ Stopper Couvée</button>
+        </div>
+      </div>
+
+      <div id="broodInactive" style="text-align: center; color: #64748b; padding: 10px; font-size: 14px;">
+        Aucune couvée en cours. Sélectionnez un profil ci-dessus et lancez la couvée.
+      </div>
+
+      <div id="broodFinishedBanner" style="display: none; background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; text-align: center;">
+        <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">🎉 Couvée terminée !</div>
+        <div id="broodFinishedText" style="font-size: 13px; color: #047857;">
+          La couvée est achevée. Pensez à aérer et nettoyer la couveuse avant d'en lancer une nouvelle.
+        </div>
+      </div>
+
+      <div id="broodActive" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+          <div>
+            <div style="font-size: 11px; color: #64748b; font-weight: bold;">ESPÈCE / PROFIL ACTIF</div>
+            <div id="broodName" style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 2px;">--</div>
+          </div>
+          <div>
+            <span id="broodPhaseBadge" class="state on" style="font-size: 12px; padding: 6px 14px;">--</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #334155;">
+            <span>Progression Totale de la Couvée</span>
+            <span id="broodProgressText">Jour -- / --</span>
+          </div>
+          <div style="background: #e2e8f0; border-radius: 10px; height: 14px; overflow: hidden;">
+            <div id="broodProgressBar" style="background: #0d9488; height: 100%; width: 0%; transition: width 0.5s ease, background 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+          <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px;">
+            <div style="font-size: 11px; color: #64748b; font-weight: bold;">PHASE D'INCUBATION</div>
+            <div id="broodIncubationDetail" style="font-size: 16px; font-weight: bold; color: #334155; margin-top: 4px;">Jour -- / --</div>
+          </div>
+          <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px;">
+            <div style="font-size: 11px; color: #64748b; font-weight: bold;">PHASE D'ÉCLOSION</div>
+            <div id="broodHatchingDetail" style="font-size: 16px; font-weight: bold; color: #334155; margin-top: 4px;">Jour -- / --</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div style="font-size: 12px; color: #64748b; font-weight: bold;">Reprise après coupure (Ajuster le jour) :</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="number" id="inputResumeDay" min="1" max="60" value="1" style="width: 70px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+          <button onclick="setBroodDay()" style="padding: 6px 12px; background: #0d9488; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;">Appliquer le Jour</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MESURES CLIMATIQUES -->
+    <section class="panel">
+      <div class="panel-title">
+        <span class="panel-icon">🌡️</span>
+        Mesures climatiques
+      </div>
+      <div class="gauges">
+        <div class="gauge-box standby">
+          <div class="gauge-title">TEMPÉRATURE</div>
+          <div class="gauge">
+            <svg viewBox="0 0 100 100">
+              <circle class="gauge-track" cx="50" cy="50" r="40"></circle>
+              <circle id="tempArc" class="gauge-progress" cx="50" cy="50" r="40"></circle>
+            </svg>
+            <div class="gauge-content">
+              <div class="gauge-value" id="temp">--.-</div>
+              <div class="gauge-unit">°C</div>
+            </div>
+          </div>
+          <div class="gauge-setpoint">Consigne : <strong id="tempSetpoint">-- °C</strong></div>
+        </div>
+
+        <div class="gauge-box standby">
+          <div class="gauge-title">HUMIDITÉ</div>
+          <div class="gauge">
+            <svg viewBox="0 0 100 100">
+              <circle class="gauge-track" cx="50" cy="50" r="40"></circle>
+              <circle id="humArc" class="gauge-progress" cx="50" cy="50" r="40"></circle>
+            </svg>
+            <div class="gauge-content">
+              <div class="gauge-value" id="hum">--</div>
+              <div class="gauge-unit">%</div>
+            </div>
+          </div>
+          <div class="gauge-setpoint">Consigne : <strong id="humSetpoint">-- %</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHAUFFAGE -->
+    <section class="panel">
+      <div class="panel-title">
+        <span class="panel-icon">🔥</span>
+        Gestion du chauffage
+      </div>
+      <div class="actuator-list">
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon">♨️</div>
+            <div>
+              <div class="actuator-name">Chauffage 1</div>
+              <div class="actuator-description">Chauffage principal</div>
+            </div>
+          </div>
+          <span id="res1" class="state off">ARRÊT</span>
+        </div>
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon">♨️</div>
+            <div>
+              <div class="actuator-name">Chauffage 2</div>
+              <div class="actuator-description">Chauffage complémentaire</div>
+            </div>
+          </div>
+          <span id="res2" class="state off">ARRÊT</span>
+        </div>
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon">🔥</div>
+            <div>
+              <div class="actuator-name">Chauffage général</div>
+              <div class="actuator-description">État global du chauffage</div>
+            </div>
+          </div>
+          <span id="chauffage" class="state off">INACTIF</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- VENTILATION / HUMIDIFICATION -->
+    <section class="panel">
+      <div class="panel-title">
+        <span class="panel-icon">💨</span>
+        Ventilation / Humidification
+      </div>
+      <div class="actuator-list">
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon fan-icon" id="brassageIcon">
+              <svg viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="3"/>
+                <path d="M20 17 C15 5 23 3 26 9 C29 14 24 18 20 17Z"/>
+                <path d="M23 20 C35 15 37 23 31 26 C26 29 22 24 23 20Z"/>
+                <path d="M20 23 C25 35 17 37 14 31 C11 26 16 22 20 23Z"/>
+                <path d="M17 20 C5 25 3 17 9 14 C14 11 18 16 17 20Z"/>
+                <circle cx="20" cy="20" r="16"/>
+              </svg>
+            </div>
+            <div>
+              <div class="actuator-name">Brassage intérieur</div>
+              <div class="actuator-description">Circulation de l'air</div>
+            </div>
+          </div>
+          <span id="brassage" class="state off">ARRÊT</span>
+        </div>
+
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon">
+              <svg viewBox="0 0 40 40">
+                <path d="M5 12 H27 C33 12 33 5 28 5"/>
+                <path d="M5 20 H33"/>
+                <path d="M5 28 H27 C33 28 33 35 28 35"/>
+                <path d="M27 16 L33 20 L27 24"/>
+              </svg>
+            </div>
+            <div>
+              <div class="actuator-name">Arrivée d'air</div>
+              <div class="actuator-description">Renouvellement de l'air</div>
+            </div>
+          </div>
+          <span id="arriveeAir" class="state unavailable">NON DISPONIBLE</span>
+        </div>
+
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon">
+              <svg viewBox="0 0 40 40">
+                <path d="M7 12 H25 C31 12 31 5 26 5"/>
+                <path d="M7 20 H25"/>
+                <path d="M7 28 H25 C31 28 31 35 26 35"/>
+                <path d="M13 16 L7 20 L13 24"/>
+              </svg>
+            </div>
+            <div>
+              <div class="actuator-name">Extraction d'air</div>
+              <div class="actuator-description">Évacuation de l'air</div>
+            </div>
+          </div>
+          <span id="extractionAir" class="state unavailable">NON DISPONIBLE</span>
+        </div>
+
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon fan-icon-general">
+              <svg viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="3"/>
+                <path d="M20 17 C15 5 23 3 26 9 C29 14 24 18 20 17Z"/>
+                <path d="M23 20 C35 15 37 23 31 26 C26 29 22 24 23 20Z"/>
+                <path d="M20 23 C25 35 17 37 14 31 C11 26 16 22 20 23Z"/>
+                <path d="M17 20 C5 25 3 17 9 14 C14 11 18 16 17 20Z"/>
+                <circle cx="20" cy="20" r="16"/>
+              </svg>
+            </div>
+            <div>
+              <div class="actuator-name">Ventilation générale</div>
+              <div class="actuator-description">État général</div>
+            </div>
+          </div>
+          <span id="ventilateur" class="state off">ARRÊT</span>
+        </div>
+
+        <div class="actuator">
+          <div class="actuator-left">
+            <div class="actuator-icon">
+              <svg viewBox="0 0 40 40">
+                <path d="M20 6 C20 6 10 18 10 25 A10 10 0 0 0 30 25 C30 18 20 6 20 6Z"/>
+                <path d="M15 26 A5 5 0 0 0 20 31" opacity="0.7"/>
+              </svg>
+            </div>
+            <div>
+              <div class="actuator-name">Brumisateur</div>
+              <div class="actuator-description">Maintien de l'humidité</div>
+            </div>
+          </div>
+          <span id="brumisateur" class="state off">ARRÊT</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAINTENANCE -->
+    <section class="panel">
+      <div class="panel-title">
+        <span class="panel-icon">
+          <svg viewBox="0 0 40 40" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 7 A10 10 0 0 0 10 20 L5 25 L15 35 L20 30 A10 10 0 0 0 33 17 L26 24 L19 17 Z"/>
+          </svg>
+        </span>
+        Maintenance
+      </div>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-icon-wrapper">
+            <div class="info-icon inactive" id="retournementIcon">
+              <svg id="retournementEgg" class="egg-svg" viewBox="0 0 40 40">
+                <defs>
+                  <radialGradient id="eggGrad" cx="35%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#fef08a"/>
+                    <stop offset="30%" stop-color="#d97706"/>
+                    <stop offset="70%" stop-color="#b45309"/>
+                    <stop offset="100%" stop-color="#78350f"/>
+                  </radialGradient>
+                </defs>
+                <path d="M20 3 C12 3 6 15 6 23 C6 31 12 37 20 37 C28 37 34 31 34 23 C34 15 28 3 20 3Z" fill="url(#eggGrad)" stroke="#78350f" stroke-width="0.8"/>
+              </svg>
+            </div>
+            <span class="status-led off" id="retournementLed"></span>
+          </div>
+          <div class="info-title">RETOURNEMENT</div>
+          <div class="info-value" id="retournement">OFF</div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-icon-wrapper">
+            <div class="info-icon inactive" id="lumiereIcon">
+              <svg viewBox="0 0 40 40">
+                <path d="M20 4 A12 12 0 0 0 13 26 C15 28 15 30 15 32 H25 C25 30 25 28 27 26 A12 12 0 0 0 20 4Z" fill="currentColor"/>
+                <path d="M15 35 H25" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M16 38 H24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="status-led off" id="lumiereLed"></span>
+          </div>
+          <div class="info-title">ÉCLAIRAGE</div>
+          <div class="info-value" id="lumiere">OFF</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <button type="button" class="btn" onclick="logoutPortal()">Déconnexion / Changer de broker</button>
+    <div class="update-time">Dernière actualisation : <span id="updateTime">--</span></div>
+  </div>
+</div>
+
+<div id="toastMsg" class="toast-msg"></div>
+
+<script>
+// ============================================================
+// VARIABLES DE SESSION EN MÉMOIRE (AUCUN SECRET EN DUR)
+// ============================================================
+const STORAGE_KEY = "couveuse_mqtt_saved_cfg_v1";
+
+let activeBrokerUrl = "";
+let activePrefix    = "";
+let activeMqttUser  = "";
+let activeMqttPass  = "";
+
+let mqttClient = null;
+let isBroodRunning = false;
+let wasBroodActive = false;
+let lastFinishedProfile = "";
+let toastTimer = null;
+
+function loadSavedSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved === "object") {
+      if (saved.url)    document.getElementById("brokerUrl").value   = saved.url;
+      if (saved.prefix) document.getElementById("broodPrefix").value = saved.prefix;
+      if (saved.user)   document.getElementById("brokerUser").value  = saved.user;
+      if (saved.pass)   document.getElementById("brokerPass").value  = saved.pass;
+      document.getElementById("rememberCreds").checked = true;
+      document.getElementById("btnClearSaved").style.display = "inline";
+    }
+  } catch (e) {
+    console.warn("Lecture localStorage impossible :", e);
+  }
+}
+
+function saveSettingsToBrowser(url, prefix, user, pass) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ url, prefix, user, pass }));
+    document.getElementById("btnClearSaved").style.display = "inline";
+  } catch (e) {
+    console.warn("Sauvegarde localStorage impossible :", e);
+  }
+}
+
+function clearSavedSettings() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {}
+  document.getElementById("brokerUrl").value = "";
+  document.getElementById("broodPrefix").value = "";
+  document.getElementById("brokerUser").value = "";
+  document.getElementById("brokerPass").value = "";
+  document.getElementById("rememberCreds").checked = false;
+  document.getElementById("btnClearSaved").style.display = "none";
+  showToast("Paramètres enregistrés effacés du navigateur", "info");
+}
+
+function showToast(message, type = "info", durationMs = 1800) {
+  const el = document.getElementById("toastMsg");
+  if (!el) return;
+  el.className = "toast-msg show" + (type === "success" ? " success" : type === "error" ? " error" : "");
+  el.innerText = message;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.className = "toast-msg";
+  }, durationMs);
+}
+
+function setState(id, active, textOn, textOff) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  element.className = active ? "state on" : "state off";
+  element.innerText = active ? textOn : textOff;
+}
+
+function updateGauge(id, value, min, max, color) {
+  const arc = document.getElementById(id);
+  if (!arc) return;
+  const circumference = 251.2;
+  let percentage = (value - min) / (max - min);
+  percentage = Math.max(0, Math.min(1, percentage));
+  const offset = circumference * (1 - percentage);
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = color;
+}
+
+function updateButtonStates(couveeActive) {
+  const btnStart = document.getElementById("btnStartBrood");
+  const btnStop  = document.getElementById("btnStopBrood");
+  const select   = document.getElementById("profileSelect");
+
+  if (couveeActive) {
+    if (btnStart) { btnStart.style.opacity = "0.5"; btnStart.disabled = true; }
+    if (btnStop)  { btnStop.style.opacity = "1"; btnStop.disabled = false; }
+    if (select)   { select.disabled = true; }
+  } else {
+    if (btnStart) { btnStart.style.opacity = "1"; btnStart.disabled = false; }
+    if (btnStop)  { btnStop.style.opacity = "0.5"; btnStop.disabled = true; }
+    if (select)   { select.disabled = false; }
+  }
+}
+
+function populateProfilesSelect(profilesList, selectedName) {
+  const select = document.getElementById("profileSelect");
+  if (!select || !Array.isArray(profilesList) || profilesList.length === 0) return;
+
+  select.innerHTML = "";
+  profilesList.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.innerText = `${p.name} (${p.days || 21}j)`;
+    select.appendChild(opt);
+  });
+
+  if (selectedName) {
+    select.value = selectedName;
+  }
+}
+
+function updateAlertBanner(alertLevel, couveeActive) {
+  const banner = document.getElementById("alertBanner");
+  const alertIcon = document.getElementById("alertIcon");
+  const alertText = document.getElementById("alertText");
+  if (!banner) return;
+
+  banner.className = "alert-banner";
+  if (!couveeActive) {
+    alertIcon.innerText = "✓";
+    alertText.innerText = "SYSTÈME EN VEILLE (HORS COUVÉE)";
+  } else if (alertLevel === 2) {
+    banner.classList.add("danger");
+    alertIcon.innerText = "⚠";
+    alertText.innerText = "ALARME";
+  } else if (alertLevel === 1) {
+    banner.classList.add("warning");
+    alertIcon.innerText = "⚠";
+    alertText.innerText = "ALERTE";
+  } else {
+    alertIcon.innerText = "✓";
+    alertText.innerText = "FONCTIONNEMENT NORMAL";
+  }
+}
+
+function applyDashboardData(data) {
+  const connEl = document.getElementById("connection");
+  const connText = document.getElementById("connectionText");
+  if (connEl) connEl.className = "connection online";
+  if (connText) connText.innerText = "Connecté";
+
+  if (Array.isArray(data.profiles)) {
+    populateProfilesSelect(data.profiles, data.profil_selectionne || data.profil_nom);
+  }
+
+  const broodInactive = document.getElementById("broodInactive");
+  const broodActive   = document.getElementById("broodActive");
+
+  if (data.couvee_en_cours) {
+    wasBroodActive = true;
+    lastFinishedProfile = data.profil_nom || "";
+    const finishedBanner = document.getElementById("broodFinishedBanner");
+    if (finishedBanner) finishedBanner.style.display = "none";
+
+    if (broodInactive) broodInactive.style.display = "none";
+    if (broodActive) broodActive.style.display = "block";
+
+    updateButtonStates(true);
+    const select = document.getElementById("profileSelect");
+    if (select && data.profil_nom && select.value !== data.profil_nom) {
+      select.value = data.profil_nom;
+    }
+
+    const nameEl = document.getElementById("broodName");
+    if (nameEl) nameEl.innerText = data.profil_nom || "Inconnu";
+
+    const phaseStr = data.phase_actuelle || "Incubation";
+    const isHatching = (phaseStr === "Éclosion" || phaseStr === "Eclosion");
+    const badge = document.getElementById("broodPhaseBadge");
+    if (badge) {
+      badge.innerText = phaseStr.toUpperCase();
+      badge.className = isHatching ? "state warning" : "state on";
+    }
+
+    const progressBar = document.getElementById("broodProgressBar");
+    const broodPhaseVisual = document.getElementById("broodPhaseVisual");
+    const broodPhaseIconLabel = document.getElementById("broodPhaseIconLabel");
+
+    if (isHatching) {
+      if (progressBar) progressBar.style.background = "#f59e0b";
+      if (broodPhaseIconLabel) broodPhaseIconLabel.innerText = "Éclosion";
+      if (broodPhaseVisual) {
+        broodPhaseVisual.innerHTML = `
+          <svg viewBox="0 0 40 40" width="32" height="32">
+            <path d="M10 26 L14 34 L20 28 L26 34 L30 26 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+            <circle cx="20" cy="18" r="9" fill="#facc15"/>
+            <ellipse cx="11" cy="19" rx="3" ry="4" fill="#eab308"/>
+            <ellipse cx="29" cy="19" rx="3" ry="4" fill="#eab308"/>
+            <circle cx="17" cy="16" r="1.2" fill="#1e293b"/>
+            <circle cx="23" cy="16" r="1.2" fill="#1e293b"/>
+            <polygon points="20,17 18,20 22,20" fill="#f97316"/>
+            <path d="M14 13 L17 9 L20 13 L23 9 L26 13 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+          </svg>
+        `;
+      }
+    } else {
+      if (progressBar) progressBar.style.background = "#0d9488";
+      if (broodPhaseIconLabel) broodPhaseIconLabel.innerText = "Incubation";
+      if (broodPhaseVisual) {
+        broodPhaseVisual.innerHTML = `
+          <svg viewBox="0 0 40 40" width="30" height="30">
+            <path d="M20 4 C12 4 7 16 7 24 C7 32 13 37 20 37 C27 37 33 32 33 24 C33 16 28 4 20 4Z" fill="url(#eggGradDashboard)" stroke="#b45309" stroke-width="1.2"/>
+            <defs>
+              <radialGradient id="eggGradDashboard" cx="35%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#fef08a"/>
+                <stop offset="40%" stop-color="#f59e0b"/>
+                <stop offset="100%" stop-color="#b45309"/>
+              </radialGradient>
+            </defs>
+          </svg>
+        `;
+      }
+    }
+
+    const jourTotal = Number(data.jour_total) || 1;
+    const totalDays = Number(data.total_days) || 21;
+    const percent = Math.max(0, Math.min(100, (jourTotal / totalDays) * 100));
+
+    const progText = document.getElementById("broodProgressText");
+    if (progText) progText.innerText = `Jour ${jourTotal} / ${totalDays} (${Math.round(percent)}%)`;
+    if (progressBar) progressBar.style.width = percent + "%";
+
+    const incDuree = Number(data.incubation_duree) || 18;
+    const jourInc = Math.min(jourTotal, incDuree);
+    const incDetail = document.getElementById("broodIncubationDetail");
+    if (incDetail) incDetail.innerText = `Jour ${jourInc} / ${incDuree}`;
+
+    const hchDuree = Number(data.hatching_duree) || 3;
+    const jourHch = jourTotal > incDuree ? (jourTotal - incDuree) : 0;
+    const hchDetail = document.getElementById("broodHatchingDetail");
+    if (hchDetail) hchDetail.innerText = `Jour ${jourHch} / ${hchDuree}`;
+  } else {
+    if (broodInactive) broodInactive.style.display = "block";
+    if (broodActive) broodActive.style.display = "none";
+
+    const broodPhaseVisual = document.getElementById("broodPhaseVisual");
+    const broodPhaseIconLabel = document.getElementById("broodPhaseIconLabel");
+    if (broodPhaseIconLabel) broodPhaseIconLabel.innerText = "Inactif";
+    if (broodPhaseVisual) broodPhaseVisual.innerHTML = "🥚";
+
+    const finishedBanner = document.getElementById("broodFinishedBanner");
+    const finishedText = document.getElementById("broodFinishedText");
+    if (wasBroodActive && finishedBanner) {
+      if (finishedText && lastFinishedProfile) {
+        finishedText.innerText = `La couvée (${lastFinishedProfile}) est terminée. Vous pouvez sélectionner un nouveau profil ou préparer la prochaine session.`;
+      }
+      finishedBanner.style.display = "block";
+    }
+
+    updateButtonStates(false);
+    const select = document.getElementById("profileSelect");
+    if (select && !select.disabled && data.profil_selectionne && select.value !== data.profil_selectionne) {
+      select.value = data.profil_selectionne;
+    }
+  }
+
+  const isStandby = !data.couvee_en_cours;
+  const tempBox = document.getElementById("temp")?.closest(".gauge-box");
+  const humBox  = document.getElementById("hum")?.closest(".gauge-box");
+  if (tempBox) tempBox.classList.toggle("standby", isStandby);
+  if (humBox)  humBox.classList.toggle("standby", isStandby);
+
+  const temperature = Number(data.temperature);
+  const consigneTemp = Number(data.consigne_temp);
+  if (Number.isFinite(temperature)) {
+    document.getElementById("temp").innerText = temperature.toFixed(1);
+    if (Number.isFinite(consigneTemp)) {
+      document.getElementById("tempSetpoint").innerText = consigneTemp.toFixed(1) + " °C";
+    }
+    let tempColor = "#0d9488";
+    if (isStandby) {
+      tempColor = "#94a3b8";
+    } else {
+      if (data.alerte_temp === 1) tempColor = "#f97316";
+      if (data.alerte_temp === 2) tempColor = "#dc2626";
+    }
+    updateGauge("tempArc", temperature, 20, 45, tempColor);
+  }
+
+  const humidite = Number(data.humidite);
+  const consigneHum = Number(data.consigne_hum);
+  if (Number.isFinite(humidite)) {
+    document.getElementById("hum").innerText = humidite.toFixed(0);
+    if (Number.isFinite(consigneHum)) {
+      document.getElementById("humSetpoint").innerText = consigneHum.toFixed(0) + " %";
+    }
+    let humColor = "#0284c7";
+    if (isStandby) {
+      humColor = "#94a3b8";
+    } else {
+      if (data.alerte_hum === 1) humColor = "#f97316";
+      if (data.alerte_hum === 2) humColor = "#dc2626";
+    }
+    updateGauge("humArc", humidite, 0, 100, humColor);
+  }
+
+  setState("res1", Boolean(data.resistance_1), "EN MARCHE", "ARRÊT");
+  setState("res2", Boolean(data.resistance_2), "EN MARCHE", "ARRÊT");
+  setState("chauffage", Boolean(data.chauffage_actif), "EN CHAUFFE", "INACTIF");
+  setState("brassage", Boolean(data.brassage), "EN MARCHE", "ARRÊT");
+
+  const airElement = document.getElementById("arriveeAir");
+  if (airElement) {
+    if (data.arrivee_air_disponible) {
+      setState("arriveeAir", Boolean(data.arrivee_air), "EN MARCHE", "ARRÊT");
+    } else {
+      airElement.className = "state unavailable";
+      airElement.innerText = "NON DISPONIBLE";
+    }
+  }
+
+  const extElement = document.getElementById("extractionAir");
+  if (extElement) {
+    const extDispo = (data.extract_air_disponible !== undefined)
+      ? Boolean(data.extract_air_disponible)
+      : Boolean(data.extraction_air_disponible);
+    const extActif = (data.extracteur_air !== undefined)
+      ? Boolean(data.extracteur_air)
+      : Boolean(data.extraction_air);
+
+    if (extDispo) {
+      setState("extractionAir", extActif, "EN MARCHE", "ARRÊT");
+    } else {
+      extElement.className = "state unavailable";
+      extElement.innerText = "NON DISPONIBLE";
+    }
+  }
+
+  const ventGeneraleActive = Boolean(data.ventilateur) || extActif;
+  setState("ventilateur", ventGeneraleActive, "EN MARCHE", "ARRÊT");
+
+  
+  const brumiActif = data.brumisateur_actif !== undefined ? Boolean(data.brumisateur_actif) : Boolean(data.brumisateur);
+  setState("brumisateur", brumiActif, "EN MARCHE", "ARRÊT");
+
+  const retournementActif = Boolean(data.retournement_actif);
+  const retournementElement = document.getElementById("retournement");
+  const retournementIcon = document.getElementById("retournementIcon");
+  const retournementLed = document.getElementById("retournementLed");
+  const retournementEgg = document.getElementById("retournementEgg");
+  if (retournementActif) {
+    retournementElement.innerText = "ON";
+    retournementIcon.className = "info-icon active";
+    retournementEgg.classList.add("turned");
+    retournementLed.className = "status-led on";
+  } else {
+    retournementElement.innerText = "OFF";
+    retournementIcon.className = "info-icon inactive";
+    retournementEgg.classList.remove("turned");
+    retournementLed.className = "status-led off";
+  }
+
+  const lumiereActive = Boolean(data.lumiere_active);
+  const lumiereElement = document.getElementById("lumiere");
+  const lumiereIcon = document.getElementById("lumiereIcon");
+  const lumiereLed = document.getElementById("lumiereLed");
+  if (lumiereActive) {
+    lumiereElement.innerText = "ON";
+    lumiereIcon.className = "info-icon active";
+    lumiereLed.className = "status-led on";
+  } else {
+    lumiereElement.innerText = "OFF";
+    lumiereIcon.className = "info-icon inactive";
+    lumiereLed.className = "status-led off";
+  }
+
+  isBroodRunning = Boolean(data.couvee_en_cours);
+  updateAlertBanner(Number(data.global_alerte) || 0, isBroodRunning);
+
+  const updateTime = document.getElementById("updateTime");
+  if (updateTime) updateTime.innerText = new Date().toLocaleTimeString("fr-FR");
+}
+
+function publishCommand(payloadObj) {
+  if (!mqttClient || !mqttClient.connected || !activePrefix) {
+    showToast("Non connecté au broker MQTT", "error");
+    return;
+  }
+  const cmdTopic = `${activePrefix}/commandes/action`;
+  mqttClient.publish(cmdTopic, JSON.stringify(payloadObj));
+}
+
+function selectProfile(profileName) {
+  if (!profileName) return;
+  publishCommand({ action: "SELECT_PROFILE", name: profileName });
+  showToast("Sélection profil envoyée : " + profileName, "success");
+}
+
+function startBrood() {
+  const finishedBanner = document.getElementById("broodFinishedBanner");
+  if (finishedBanner) finishedBanner.style.display = "none";
+  wasBroodActive = false;
+  publishCommand({ action: "START_BROOD" });
+  showToast("Commande démarrage envoyée", "success");
+}
+
+function stopBrood() {
+  publishCommand({ action: "STOP_BROOD" });
+  showToast("Commande arrêt envoyée", "success");
+}
+
+function setBroodDay() {
+  const inputField = document.getElementById("inputResumeDay");
+  const dayVal = Number(inputField?.value);
+  if (!dayVal || dayVal < 1) {
+    showToast("Veuillez entrer un numéro de jour valide.", "error");
+    return;
+  }
+  publishCommand({ action: "SET_DAY", day: dayVal });
+  showToast("Ajustement au jour " + dayVal + " envoyé", "success");
+}
+
+function handleBrokerConnect(event) {
+  event.preventDefault();
+
+  const urlInput    = document.getElementById("brokerUrl").value.trim();
+  const prefixInput = document.getElementById("broodPrefix").value.trim().replace(/^\/+|\/+$/g, "");
+  const userInput   = document.getElementById("brokerUser").value.trim();
+  const passInput   = document.getElementById("brokerPass").value;
+  const remember    = document.getElementById("rememberCreds").checked;
+  const errEl       = document.getElementById("loginError");
+  const btnEl       = document.getElementById("btnConnectBroker");
+
+  if (!urlInput.startsWith("wss://") || urlInput.length <= 6) {
+    errEl.innerText = "L'adresse du broker doit commencer par wss:// et être complète.";
+    return;
+  }
+  if (!prefixInput) {
+    errEl.innerText = "Veuillez renseigner le nom / préfixe de la couveuse.";
+    return;
+  }
+
+  errEl.innerText = "";
+  btnEl.disabled = true;
+  btnEl.innerText = "Connexion au broker WSS...";
+
+  activeBrokerUrl = urlInput;
+  activePrefix    = prefixInput;
+  activeMqttUser  = userInput;
+  activeMqttPass  = passInput;
+
+  if (mqttClient) {
+    mqttClient.end(true);
+    mqttClient = null;
+  }
+
+  let initialOpenDone = false;
+
+  try {
+    mqttClient = mqtt.connect(activeBrokerUrl, {
+      username: activeMqttUser || undefined,
+      password: activeMqttPass || undefined,
+      clean: true,
+      reconnectPeriod: 4000,
+      connectTimeout: 8000
+    });
+  } catch (e) {
+    btnEl.disabled = false;
+    btnEl.innerText = "Se connecter au Dashboard";
+    errEl.innerText = "URL WSS invalide : " + e.message;
+    return;
+  }
+
+  mqttClient.on("connect", () => {
+    const connEl = document.getElementById("connection");
+    const connText = document.getElementById("connectionText");
+    if (connEl) connEl.className = "connection online";
+    if (connText) connText.innerText = "Connecté";
+
+    if (!initialOpenDone) {
+      initialOpenDone = true;
+      if (remember) {
+        saveSettingsToBrowser(activeBrokerUrl, activePrefix, activeMqttUser, activeMqttPass);
+      } else {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        document.getElementById("btnClearSaved").style.display = "none";
+      }
+
+      btnEl.disabled = false;
+      btnEl.innerText = "Se connecter au Dashboard";
+      document.getElementById("headerPrefixBadge").innerText = `(${activePrefix})`;
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("dashboardRoot").style.display = "block";
+    }
+
+    mqttClient.subscribe([
+      `${activePrefix}/dashboard/etat`,
+      `${activePrefix}/mesures/temperature`,
+      `${activePrefix}/mesures/humidite`,
+      `${activePrefix}/alarmes/niveau`
+    ]);
+    publishCommand({ action: "STATUS" });
+  });
+
+  mqttClient.on("message", (topic, message) => {
+    const rawStr = message.toString().trim();
+    if (topic === `${activePrefix}/dashboard/etat`) {
+      try {
+        const data = JSON.parse(rawStr);
+        applyDashboardData(data);
+      } catch (e) {
+        console.error("JSON MQTT invalide :", e);
+      }
+    } else if (topic === `${activePrefix}/mesures/temperature`) {
+      const val = parseFloat(rawStr);
+      if (Number.isFinite(val)) {
+        const tempEl = document.getElementById("temp");
+        if (tempEl) tempEl.innerText = val.toFixed(1);
+        const isStandby = tempEl?.closest(".gauge-box")?.classList.contains("standby");
+        const arcEl = document.getElementById("tempArc");
+        const currentColor = isStandby ? "#94a3b8" : (arcEl?.style.stroke || "#0d9488");
+        updateGauge("tempArc", val, 20, 45, currentColor);
+        const updateTime = document.getElementById("updateTime");
+        if (updateTime) updateTime.innerText = new Date().toLocaleTimeString("fr-FR");
+      }
+    } else if (topic === `${activePrefix}/mesures/humidite`) {
+      const val = parseFloat(rawStr);
+      if (Number.isFinite(val)) {
+        const humEl = document.getElementById("hum");
+        if (humEl) humEl.innerText = val.toFixed(0);
+        const isStandby = humEl?.closest(".gauge-box")?.classList.contains("standby");
+        const arcEl = document.getElementById("humArc");
+        const currentColor = isStandby ? "#94a3b8" : (arcEl?.style.stroke || "#0284c7");
+        updateGauge("humArc", val, 0, 100, currentColor);
+        const updateTime = document.getElementById("updateTime");
+        if (updateTime) updateTime.innerText = new Date().toLocaleTimeString("fr-FR");
+      }
+    } else if (topic === `${activePrefix}/alarmes/niveau`) {
+      const level = parseInt(rawStr, 10);
+      if (Number.isFinite(level)) {
+        updateAlertBanner(level, isBroodRunning);
+        const updateTime = document.getElementById("updateTime");
+        if (updateTime) updateTime.innerText = new Date().toLocaleTimeString("fr-FR");
+      }
+    }
+  });
+
+  mqttClient.on("offline", () => {
+    const connEl = document.getElementById("connection");
+    const connText = document.getElementById("connectionText");
+    if (connEl) connEl.className = "connection offline";
+    if (connText) connText.innerText = "Déconnecté";
+  });
+
+  mqttClient.on("error", () => {
+    if (!initialOpenDone) {
+      if (mqttClient) {
+        mqttClient.end(true);
+        mqttClient = null;
+      }
+      btnEl.disabled = false;
+      btnEl.innerText = "Se connecter au Dashboard";
+      errEl.innerText = "Échec de connexion WSS (vérifiez l'URL, l'identifiant ou le mot de passe).";
+    } else {
+      const connEl = document.getElementById("connection");
+      const connText = document.getElementById("connectionText");
+      if (connEl) connEl.className = "connection offline";
+      if (connText) connText.innerText = "Erreur WSS";
+    }
+  });
+}
+
+function logoutPortal() {
+  if (mqttClient) {
+    mqttClient.end(true);
+    mqttClient = null;
+  }
+
+  activeBrokerUrl = "";
+  activePrefix    = "";
+  activeMqttUser  = "";
+  activeMqttPass  = "";
+  isBroodRunning  = false;
+  wasBroodActive  = false;
+  lastFinishedProfile = "";
+
+  document.getElementById("loginError").innerText = "";
+  document.getElementById("headerPrefixBadge").innerText = "";
+  document.getElementById("dashboardRoot").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+  const extElement = document.getElementById("extractionAir");
+  if (extElement) {
+    extElement.className = "state unavailable";
+    extElement.innerText = "NON DISPONIBLE";
+  }
+
+  if (!document.getElementById("rememberCreds").checked) {
+    document.getElementById("brokerPass").value = "";
+  }
+}
+
+window.addEventListener("load", loadSavedSettings);
+</script>
+</body>
+</html>
